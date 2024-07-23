@@ -114,4 +114,5 @@ nohup.out
 
 # settings
 settings.ini
-runtime
+runtime!/.venv/
+/.venv/
