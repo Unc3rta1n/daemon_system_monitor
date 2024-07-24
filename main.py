@@ -1,19 +1,24 @@
-import subprocess
-import asyncio
-from command_parser.parser import get_inodes_fs, get_top_info
+from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
+                                   get_tcp_connection_states)
 
 
-res1 = get_inodes_fs()
+res1 = get_fs_info()
 for line in res1:
     print(line)
-# stdout = subprocess.run(['top', '-b', '-n1'], capture_output=True, text=True)
-# print(stdout.stdout)
 
 res2 = get_top_info()
+print(res2)
 
-print(f"user mode {res2['user_mode']}")
-print(f"system mode {res2['system_mode']}")
-print(f"idle mode {res2['idle_mode']}")
-print(f"load avg minute {res2['load_avg_min']}")
-print(f"load avg 5minute {res2['load_avg_5min']}")
-print(f"load avg 15minute {res2['load_avg_15min']}")
+res3 = get_disk_load()
+for line in res3:
+    print(line)
+
+print("Listening Sockets:")
+sockets_info = get_listening_sockets()
+for info in sockets_info:
+    print(info)
+
+print("\nTCP Connection States:")
+connection_states = get_tcp_connection_states()
+for state, count in connection_states.items():
+    print(f"{state}: {count}")
