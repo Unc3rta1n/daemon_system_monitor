@@ -1,8 +1,6 @@
 import asyncio
 import logging
-import grpc
 
-import daemon_sysmon_pb2_grpc
 from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
                                    get_tcp_connection_states)
 from grpc_.server import serve

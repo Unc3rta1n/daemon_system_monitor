@@ -7,7 +7,6 @@ from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get
 import daemon_sysmon_pb2
 import daemon_sysmon_pb2_grpc
 import logging
-import time
 
 
 def average_listening_sockets(stats_list):
