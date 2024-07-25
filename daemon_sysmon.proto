@@ -27,19 +27,19 @@ message FilesystemInfo {
   string filesystem = 1;
   int64 inodes = 2;
   int64 iused = 3;
-  string iuse_calculated_percent = 4;
-  string used_mb = 5;
-  string space_used_percent = 6;
+  float iuse_calculated_percent = 4;
+  float used_mb = 5;
+  float space_used_percent = 6;
 }
 
 // Message representing CPU info
 message CpuInfo {
-  string user_mode = 1;
-  string system_mode = 2;
-  string idle_mode = 3;
-  string load_avg_min = 4;
-  string load_avg_5min = 5;
-  string load_avg_15min = 6;
+  float user_mode = 1;
+  float system_mode = 2;
+  float idle_mode = 3;
+  float load_avg_min = 4;
+  float load_avg_5min = 5;
+  float load_avg_15min = 6;
 }
 
 // Message representing device stats

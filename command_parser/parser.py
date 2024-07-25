@@ -1,6 +1,7 @@
 import asyncio
 import subprocess
 import re
+import logging
 
 
 async def get_fs_info():
@@ -44,7 +45,7 @@ async def get_fs_info():
             'Total KB': total_kb,
             'Used KB': used_kb,
             'Available KB': available_kb,
-            'Space Used%': f"{space_used_percent:.2f}%"
+            'Space Used%': space_used_percent
         }
 
     results = []
@@ -63,21 +64,20 @@ async def get_fs_info():
             continue
 
         if inodes <= 0 or iused < 0:
-            iuse_calculated_percent = 'Invalid data'
+            iuse_calculated_percent = 0.0
         else:
             iuse_calculated_percent = (iused / inodes) * 100
 
         size_info = size_dict.get(filesystem, {})
         used_mb = size_info.get('Used KB', 0) / 1024
-        space_used_percent = size_info.get('Space Used%', '0%')
+        space_used_percent = size_info.get('Space Used%', '0')
 
         results.append({
             'Filesystem': filesystem,
             'Inodes': inodes,
             'IUsed': iused,
-            'IUse Calculated%': f"{iuse_calculated_percent:.2f}%" if isinstance(iuse_calculated_percent, float)
-            else iuse_calculated_percent,
-            'Used MB': f"{used_mb:.2f}",
+            'IUse Calculated%': iuse_calculated_percent,
+            'Used MB': used_mb,
             'Space Used%': space_used_percent
         })
 
@@ -114,13 +114,16 @@ async def get_top_info():
     lines = output.decode().strip().split('\n')
     line = [word for segment in lines[0].split(',') for word in segment.split()]
     _line = [word for segment in lines[2].split(',') for word in segment.split()]
-    result = {'user_mode': _line[1],
-              'system_mode': _line[3],
-              'idle_mode': _line[7],
-              'load_avg_min': line[9],
-              'load_avg_5min': line[10],
-              'load_avg_15min': line[11]
-              }
+    try:
+        result = {'user_mode': float(_line[1]),
+                  'system_mode': float(_line[3]),
+                  'idle_mode': float(_line[7]),
+                  'load_avg_min': float(line[10]),
+                  'load_avg_5min': float(line[11]),
+                  'load_avg_15min': float(line[12])
+                  }
+    except Exception as e:
+        logging.error(f'че такое случается то тут бля {e}')
 
     return result
 

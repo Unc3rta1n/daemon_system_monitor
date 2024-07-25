@@ -1,14 +1,186 @@
 import grpc
-
-import grpc_
 import asyncio
 from concurrent import futures
-from collections import deque
+from collections import deque, defaultdict
 from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
                                    get_tcp_connection_states)
 import daemon_sysmon_pb2
 import daemon_sysmon_pb2_grpc
 import logging
+import time
+
+
+def average_listening_sockets(stats_list):
+    unique_sockets = {}
+
+    # Суммируем уникальные сокеты
+    for stats in stats_list:
+        for net_info in stats.listening_sockets:
+            socket_key = (net_info.command, net_info.pid, net_info.protocol, net_info.port)
+            if socket_key not in unique_sockets:
+                unique_sockets[socket_key] = daemon_sysmon_pb2.NetworkInfo(
+                    command=net_info.command,
+                    pid=net_info.pid,
+                    user=net_info.user,
+                    protocol=net_info.protocol,
+                    port=net_info.port
+                )
+
+    return list(unique_sockets.values())
+
+
+def average_tcp_states(stats_list):
+    tcp_totals = {
+        "estab": 0,
+        "fin_wait": 0,
+        "syn_rcv": 0,
+        "time_wait": 0,
+        "close_wait": 0,
+        "last_ack": 0,
+        "listen": 0,
+        "close": 0,
+        "unknown": 0
+    }
+
+    for stats in stats_list:
+        tcp_totals["estab"] += stats.tcp_states.estab
+        tcp_totals["fin_wait"] += stats.tcp_states.fin_wait
+        tcp_totals["syn_rcv"] += stats.tcp_states.syn_rcv
+        tcp_totals["time_wait"] += stats.tcp_states.time_wait
+        tcp_totals["close_wait"] += stats.tcp_states.close_wait
+        tcp_totals["last_ack"] += stats.tcp_states.last_ack
+        tcp_totals["listen"] += stats.tcp_states.listen
+        tcp_totals["close"] += stats.tcp_states.close
+        tcp_totals["unknown"] += stats.tcp_states.unknown
+
+    n = len(stats_list)
+    tcp_averages = {
+        "estab": tcp_totals["estab"] // n,
+        "fin_wait": tcp_totals["fin_wait"] // n,
+        "syn_rcv": tcp_totals["syn_rcv"] // n,
+        "time_wait": tcp_totals["time_wait"] // n,
+        "close_wait": tcp_totals["close_wait"] // n,
+        "last_ack": tcp_totals["last_ack"] // n,
+        "listen": tcp_totals["listen"] // n,
+        "close": tcp_totals["close"] // n,
+        "unknown": tcp_totals["unknown"] // n
+    }
+
+    return tcp_averages
+
+
+def average_cpu_info(stats_list):
+    cpu_totals = {
+        "user_mode": 0.0,
+        "system_mode": 0.0,
+        "idle_mode": 0.0,
+        "load_avg_min": 0.0,
+        "load_avg_5min": 0.0,
+        "load_avg_15min": 0.0
+    }
+
+    for stats in stats_list:
+        cpu_totals["user_mode"] += stats.cpu.user_mode
+        cpu_totals["system_mode"] += stats.cpu.system_mode
+        cpu_totals["idle_mode"] += stats.cpu.idle_mode
+        cpu_totals["load_avg_min"] += stats.cpu.load_avg_min
+        cpu_totals["load_avg_5min"] += stats.cpu.load_avg_5min
+        cpu_totals["load_avg_15min"] += stats.cpu.load_avg_15min
+
+    n = len(stats_list)
+    cpu_averages = {
+        "user_mode": cpu_totals["user_mode"] / n,
+        "system_mode": cpu_totals["system_mode"] / n,
+        "idle_mode": cpu_totals["idle_mode"] / n,
+        "load_avg_min": cpu_totals["load_avg_min"] / n,
+        "load_avg_5min": cpu_totals["load_avg_5min"] / n,
+        "load_avg_15min": cpu_totals["load_avg_15min"] / n
+    }
+
+    return cpu_averages
+
+
+def average_device_info(stats_list):
+    device_totals = defaultdict(lambda: {
+        "tps": 0.0,
+        "kb_read_per_s": 0.0,
+        "kb_write_per_s": 0.0,
+        "count": 0
+    })
+
+    for stats in stats_list:
+        for dev_info in stats.devices:
+            device_totals[dev_info.device]["tps"] += dev_info.tps
+            device_totals[dev_info.device]["kb_read_per_s"] += dev_info.kb_read_per_s
+            device_totals[dev_info.device]["kb_write_per_s"] += dev_info.kb_write_per_s
+            device_totals[dev_info.device]["count"] += 1
+
+    dev_averages = []
+    for device, totals in device_totals.items():
+        count = totals["count"]
+        dev_averages.append(daemon_sysmon_pb2.DeviceStats(
+            device=device,
+            tps=totals["tps"] / count,
+            kb_read_per_s=totals["kb_read_per_s"] / count,
+            kb_write_per_s=totals["kb_write_per_s"] / count
+        ))
+
+    return dev_averages
+
+
+def average_filesystems(stats_list):
+    fs_totals = defaultdict(lambda: {
+        "inodes": 0,
+        "iused": 0,
+        "iuse_calculated_percent": 0.0,
+        "used_mb": 0.0,
+        "space_used_percent": 0.0,
+        "count": 0
+    })
+
+    # Суммируем данные для каждой уникальной файловой системы
+    for stats in stats_list:
+        for fs_info in stats.filesystems:
+            fs_key = (fs_info.filesystem, fs_info.inodes,
+                      fs_info.iused)  # Уникальный ключ на основе файловой системы и её данных
+            fs_totals[fs_key]["inodes"] += fs_info.inodes
+            fs_totals[fs_key]["iused"] += fs_info.iused
+            fs_totals[fs_key]["iuse_calculated_percent"] += fs_info.iuse_calculated_percent
+            fs_totals[fs_key]["used_mb"] += fs_info.used_mb
+            fs_totals[fs_key]["space_used_percent"] += float(fs_info.space_used_percent)
+            fs_totals[fs_key]["count"] += 1
+
+    # Усредняем значения
+    fs_averages = []
+    for fs_key, totals in fs_totals.items():
+        filesystem, inodes, iused = fs_key
+        count = totals["count"]
+        fs_averages.append(daemon_sysmon_pb2.FilesystemInfo(
+            filesystem=filesystem,
+            inodes=totals["inodes"] // count,  # Целочисленное деление
+            iused=totals["iused"] // count,  # Целочисленное деление
+            iuse_calculated_percent=totals["iuse_calculated_percent"] / count,
+            used_mb=totals["used_mb"] / count,
+            space_used_percent=totals["space_used_percent"] / count
+        ))
+
+    return fs_averages
+
+
+def average_stats(stats_list):
+    fs_averages = average_filesystems(stats_list)
+    tcp_averages = average_tcp_states(stats_list)
+    cpu_averages = average_cpu_info(stats_list)
+    dev_averages = average_device_info(stats_list)
+    unique_sockets = average_listening_sockets(stats_list)
+
+    return daemon_sysmon_pb2.SystemStats(
+        filesystems=fs_averages,
+        cpu=daemon_sysmon_pb2.CpuInfo(**cpu_averages),
+        devices=dev_averages,
+        listening_sockets=unique_sockets,
+        tcp_states=daemon_sysmon_pb2.TcpConnectionStates(**tcp_averages)
+    )
 
 
 class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
@@ -16,19 +188,18 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         self.stats_history = deque()
         self.lock = asyncio.Lock()
         self.collect_data_period = 1
+        self.collect_data_task = None  # Хранить задачу сбора данных
 
     async def collect_data(self):
         while True:
-            logging.info("курим")
+            logging.info("Начинаем сбор данных")
             await asyncio.sleep(self.collect_data_period)
-            logging.info("не курим")
-
             filesystem_info = await get_fs_info()
             cpu_info = await get_top_info()
             disk_info = await get_disk_load()
             listening_sockets = await get_listening_sockets()
             tcp_connection_states = await get_tcp_connection_states()
-            logging.info("собрали инфу")
+            logging.info("Собрали данные")
 
             fs_info = [
                 daemon_sysmon_pb2.FilesystemInfo(
@@ -69,15 +240,15 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             ]
 
             tcp_states = daemon_sysmon_pb2.TcpConnectionStates(
-                estab=tcp_connection_states['ESTAB'],
-                fin_wait=tcp_connection_states['FIN_WAIT'],
-                syn_rcv=tcp_connection_states['SYN_RCV'],
-                time_wait=tcp_connection_states['TIME-WAIT'],
-                close_wait=tcp_connection_states['CLOSE-WAIT'],
-                last_ack=tcp_connection_states['LAST-ACK'],
-                listen=tcp_connection_states['LISTEN'],
-                close=tcp_connection_states['CLOSE'],
-                unknown=tcp_connection_states['UNKNOWN']
+                estab=int(tcp_connection_states['ESTAB']),
+                fin_wait=int(tcp_connection_states['FIN_WAIT']),
+                syn_rcv=int(tcp_connection_states['SYN_RCV']),
+                time_wait=int(tcp_connection_states['TIME-WAIT']),
+                close_wait=int(tcp_connection_states['CLOSE-WAIT']),
+                last_ack=int(tcp_connection_states['LAST-ACK']),
+                listen=int(tcp_connection_states['LISTEN']),
+                close=int(tcp_connection_states['CLOSE']),
+                unknown=int(tcp_connection_states['UNKNOWN'])
             )
             async with self.lock:
                 self.stats_history.append(
@@ -88,145 +259,38 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                         listening_sockets=net_info,
                         tcp_states=tcp_states
                     )
-
                 )
-                logging.info("заапендили")
+                logging.info("Добавили данные в историю")
 
-                if len(self.stats_history) > 60:  # Храним историю за последние 60 секунд
+                # Оставляем только последние M секунд данных
+                if len(self.stats_history) > 60:
                     self.stats_history.popleft()
 
     async def GetSystemStats(self, request, context):
         interval = request.interval
         window = request.window
-        logging.info("пришел запрос от клиента")
+        logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
 
-        await asyncio.sleep(window)  # Ожидание перед первым выводом
+        # Запускаем сбор данных в фоновом режиме
+        if self.collect_data_task is None or self.collect_data_task.done():
+            self.collect_data_task = asyncio.create_task(self.collect_data())
+
+        # Сначала ждем, пока накопится достаточно данных
+        while len(self.stats_history) <= window / self.collect_data_period:
+            await asyncio.sleep(self.collect_data_period)
 
         while True:
             async with self.lock:
+                # Получаем данные за последние M секунд
                 stats_list = list(self.stats_history)[-window:]
-                logging.info("смотрим статс лист")
+                logging.info(f"Получаем статистику для окна {window} секунд")
 
-            if not stats_list:
-                logging.info("бля, пустой")
-                continue
-
-            # Усреднение данных
-            averaged_stats = self.average_stats(stats_list)
-            yield averaged_stats
+            if stats_list:
+                # Усреднение данных
+                averaged_stats = average_stats(stats_list)
+                yield averaged_stats
 
             await asyncio.sleep(interval)
-
-    def average_stats(self, stats_list):
-        fs_info_averages = []
-        cpu_info_average = {
-            "user_mode": 0,
-            "system_mode": 0,
-            "idle_mode": 0,
-            "load_avg_min": 0,
-            "load_avg_5min": 0,
-            "load_avg_15min": 0
-        }
-        dev_stats_averages = []
-        tcp_states_average = {
-            "estab": 0,
-            "fin_wait": 0,
-            "syn_rcv": 0,
-            "time_wait": 0,
-            "close_wait": 0,
-            "last_ack": 0,
-            "listen": 0,
-            "close": 0,
-            "unknown": 0
-        }
-
-        n = len(stats_list)
-
-        for stats in stats_list:
-            # Усредняем данные о файловых системах
-            for fs_info in stats.filesystems:
-                matched_fs = next((fs for fs in fs_info_averages if fs.filesystem == fs_info.filesystem), None)
-                if not matched_fs:
-                    fs_info_averages.append(
-                        daemon_sysmon_pb2.FilesystemInfo(
-                            filesystem=fs_info.filesystem,
-                            inodes=fs_info.inodes / n,
-                            iused=fs_info.iused / n,
-                            iuse_calculated_percent=fs_info.iuse_calculated_percent / n,
-                            used_mb=fs_info.used_mb / n,
-                            space_used_percent=float(fs_info.space_used_percent.strip('%')) / n
-                        )
-                    )
-                else:
-                    matched_fs.inodes += fs_info.inodes / n
-                    matched_fs.iused += fs_info.iused / n
-                    matched_fs.iuse_calculated_percent += fs_info.iuse_calculated_percent / n
-                    matched_fs.used_mb += fs_info.used_mb / n
-                    matched_fs.space_used_percent += float(fs_info.space_used_percent.strip('%')) / n
-
-            # Усредняем данные о CPU
-            cpu_info_average['user_mode'] += float(stats.cpu.user_mode.strip('%')) / n
-            cpu_info_average['system_mode'] += float(stats.cpu.system_mode.strip('%')) / n
-            cpu_info_average['idle_mode'] += float(stats.cpu.idle_mode.strip('%')) / n
-            cpu_info_average['load_avg_min'] += float(stats.cpu.load_avg_min) / n
-            cpu_info_average['load_avg_5min'] += float(stats.cpu.load_avg_5min) / n
-            cpu_info_average['load_avg_15min'] += float(stats.cpu.load_avg_15min) / n
-
-            # Усредняем данные об устройствах
-            for dev_info in stats.devices:
-                matched_dev = next((dev for dev in dev_stats_averages if dev.device == dev_info.device), None)
-                if not matched_dev:
-                    dev_stats_averages.append(
-                        daemon_sysmon_pb2.DeviceStats(
-                            device=dev_info.device,
-                            tps=float(dev_info.tps) / n,
-                            kb_read_per_s=float(dev_info.kb_read_per_s) / n,
-                            kb_write_per_s=float(dev_info.kb_write_per_s) / n
-                        )
-                    )
-                else:
-                    matched_dev.tps += float(dev_info.tps) / n
-                    matched_dev.kb_read_per_s += float(dev_info.kb_read_per_s) / n
-                    matched_dev.kb_write_per_s += float(dev_info.kb_write_per_s) / n
-
-            # Усредняем данные о состояниях TCP
-            tcp_states_average['estab'] += stats.tcp_states.estab / n
-            tcp_states_average['fin_wait'] += stats.tcp_states.fin_wait / n
-            tcp_states_average['syn_rcv'] += stats.tcp_states.syn_rcv / n
-            tcp_states_average['time_wait'] += stats.tcp_states.time_wait / n
-            tcp_states_average['close_wait'] += stats.tcp_states.close_wait / n
-            tcp_states_average['last_ack'] += stats.tcp_states.last_ack / n
-            tcp_states_average['listen'] += stats.tcp_states.listen / n
-            tcp_states_average['close'] += stats.tcp_states.close / n
-            tcp_states_average['unknown'] += stats.tcp_states.unknown / n
-
-        cpu_info = daemon_sysmon_pb2.CpuInfo(
-            user_mode=f"{cpu_info_average['user_mode']:.2f}%",
-            system_mode=f"{cpu_info_average['system_mode']:.2f}%",
-            idle_mode=f"{cpu_info_average['idle_mode']:.2f}%",
-            load_avg_min=f"{cpu_info_average['load_avg_min']:.2f}",
-            load_avg_5min=f"{cpu_info_average['load_avg_5min']:.2f}",
-            load_avg_15min=f"{cpu_info_average['load_avg_15min']:.2f}"
-        )
-
-        tcp_states = daemon_sysmon_pb2.TcpConnectionStates(
-            estab=int(tcp_states_average['estab']),
-            fin_wait=int(tcp_states_average['fin_wait']),
-            syn_rcv=int(tcp_states_average['syn_rcv']),
-            time_wait=int(tcp_states_average['time_wait']),
-            close_wait=int(tcp_states_average['close_wait']),
-            last_ack=int(tcp_states_average['last_ack']),
-            listen=int(tcp_states_average['listen']),
-            close=int(tcp_states_average['close']),
-            unknown=int(tcp_states_average['unknown'])
-        )
-
-        return daemon_sysmon_pb2.SystemStats(
-            filesystems=fs_info_averages,
-            cpu=cpu_info,
-            devices=dev_stats_averages,
-            tcp_states=tcp_states
-        )
 
 
 async def serve():
@@ -236,13 +300,5 @@ async def serve():
     server.add_insecure_port('[::]:50051')
     await server.start()
     print("Server started on port 50051")
-    # Запускаем сбор данных в фоновом режиме
-    collect_data_task = asyncio.create_task(system_monitor.collect_data())
-
     # Ожидаем завершения сервера
-    await server.wait_for_termination()
-
-    # Отменяем задачу сбора данных при завершении сервера
-    collect_data_task.cancel()
-
     await server.wait_for_termination()
