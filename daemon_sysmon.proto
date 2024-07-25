@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+service SystemInfoService {
+  rpc GetSystemStats (SystemStatsRequest) returns (stream SystemStats);
+}
+
+message SystemStatsRequest {
+  int32 interval = 1; // N: Интервал времени между отчетами (в секундах)
+  int32 window = 2;   // M: Временной интервал для усреднения (в секундах)
+}
+
+message FilesystemInfo {
+  string filesystem = 1;
+  int64 inodes = 2;
+  int64 iused = 3;
+  string iuse_calculated_percent = 4;
+  string used_mb = 5;
+  string space_used_percent = 6;
+}
+
+message CpuInfo {
+  string user_mode = 1;
+  string system_mode = 2;
+  string idle_mode = 3;
+  string load_avg_min = 4;
+  string load_avg_5min = 5;
+  string load_avg_15min = 6;
+}
+
+message DeviceStats {
+  string device = 1;
+  string tps = 2;
+  string kb_read_per_s = 3;
+  string kb_write_per_s = 4;
+}
+
+message NetworkInfo {
+  string command = 1;
+  string pid = 2;
+  string user = 3;
+  string protocol = 4;
+  string port = 5;
+}
+
+message TcpConnectionStates {
+  int32 estab = 1;
+  int32 fin_wait = 2;
+  int32 syn_rcv = 3;
+  int32 time_wait = 4;
+  int32 close_wait = 5;
+  int32 last_ack = 6;
+  int32 listen = 7;
+  int32 close = 8;
+  int32 unknown = 9;
+}
+
+message SystemStats {
+  repeated FilesystemInfo filesystems = 1;
+  CpuInfo cpu = 2;
+  repeated DeviceStats devices = 3;
+  repeated NetworkInfo listening_sockets = 4;
+  TcpConnectionStates tcp_states = 5;
+}
