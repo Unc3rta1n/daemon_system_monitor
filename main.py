@@ -1,7 +1,11 @@
 import asyncio
+import logging
+import grpc
 
+import daemon_sysmon_pb2_grpc
 from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
                                    get_tcp_connection_states)
+from grpc_.server import serve
 
 
 async def main():
@@ -29,4 +33,12 @@ async def main():
         print(f"{state}: {count}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    logging.basicConfig(level=logging.INFO, handlers=[console_handler])
+
+    asyncio.run(serve())

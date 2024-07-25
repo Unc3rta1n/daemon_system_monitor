@@ -1,14 +1,28 @@
 syntax = "proto3";
 
+package daemon_sysmon;
+
+// Service definition
 service SystemInfoService {
-  rpc GetSystemStats (SystemStatsRequest) returns (stream SystemStats);
+  rpc GetSystemStats(SystemStatsRequest) returns (stream SystemStats);
 }
 
+// Request message for getting system stats
 message SystemStatsRequest {
-  int32 interval = 1; // N: Интервал времени между отчетами (в секундах)
-  int32 window = 2;   // M: Временной интервал для усреднения (в секундах)
+  int32 interval = 1;
+  int32 window = 2;
 }
 
+// Message representing system stats
+message SystemStats {
+  repeated FilesystemInfo filesystems = 1;
+  CpuInfo cpu = 2;
+  repeated DeviceStats devices = 3;
+  repeated NetworkInfo listening_sockets = 4;
+  TcpConnectionStates tcp_states = 5;
+}
+
+// Message representing filesystem info
 message FilesystemInfo {
   string filesystem = 1;
   int64 inodes = 2;
@@ -18,6 +32,7 @@ message FilesystemInfo {
   string space_used_percent = 6;
 }
 
+// Message representing CPU info
 message CpuInfo {
   string user_mode = 1;
   string system_mode = 2;
@@ -27,13 +42,15 @@ message CpuInfo {
   string load_avg_15min = 6;
 }
 
+// Message representing device stats
 message DeviceStats {
   string device = 1;
-  string tps = 2;
-  string kb_read_per_s = 3;
-  string kb_write_per_s = 4;
+  float tps = 2;
+  float kb_read_per_s = 3;
+  float kb_write_per_s = 4;
 }
 
+// Message representing network info
 message NetworkInfo {
   string command = 1;
   string pid = 2;
@@ -42,6 +59,7 @@ message NetworkInfo {
   string port = 5;
 }
 
+// Message representing TCP connection states
 message TcpConnectionStates {
   int32 estab = 1;
   int32 fin_wait = 2;
@@ -52,12 +70,4 @@ message TcpConnectionStates {
   int32 listen = 7;
   int32 close = 8;
   int32 unknown = 9;
-}
-
-message SystemStats {
-  repeated FilesystemInfo filesystems = 1;
-  CpuInfo cpu = 2;
-  repeated DeviceStats devices = 3;
-  repeated NetworkInfo listening_sockets = 4;
-  TcpConnectionStates tcp_states = 5;
 }

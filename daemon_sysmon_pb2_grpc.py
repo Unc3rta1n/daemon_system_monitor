@@ -31,7 +31,8 @@ if _version_not_supported:
 
 
 class SystemInfoServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """Service definition
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -40,14 +41,15 @@ class SystemInfoServiceStub(object):
             channel: A grpc.Channel.
         """
         self.GetSystemStats = channel.unary_stream(
-                '/SystemInfoService/GetSystemStats',
+                '/daemon_sysmon.SystemInfoService/GetSystemStats',
                 request_serializer=daemon__sysmon__pb2.SystemStatsRequest.SerializeToString,
                 response_deserializer=daemon__sysmon__pb2.SystemStats.FromString,
                 _registered_method=True)
 
 
 class SystemInfoServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """Service definition
+    """
 
     def GetSystemStats(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -65,14 +67,15 @@ def add_SystemInfoServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'SystemInfoService', rpc_method_handlers)
+            'daemon_sysmon.SystemInfoService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('SystemInfoService', rpc_method_handlers)
+    server.add_registered_method_handlers('daemon_sysmon.SystemInfoService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
 class SystemInfoService(object):
-    """Missing associated documentation comment in .proto file."""
+    """Service definition
+    """
 
     @staticmethod
     def GetSystemStats(request,
@@ -88,7 +91,7 @@ class SystemInfoService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/SystemInfoService/GetSystemStats',
+            '/daemon_sysmon.SystemInfoService/GetSystemStats',
             daemon__sysmon__pb2.SystemStatsRequest.SerializeToString,
             daemon__sysmon__pb2.SystemStats.FromString,
             options,

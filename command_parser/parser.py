@@ -96,9 +96,9 @@ async def get_disk_load():
     for line in iostat[3:]:
         parts = line.split()
         disk_dict = {'Device': parts[0],
-                     'tps': parts[1],
-                     'kB_read/s': parts[2],
-                     'kB_write/s': parts[3]}
+                     'tps': float(parts[1]),
+                     'kB_read/s': float(parts[2]),
+                     'kB_write/s': float(parts[3])}
         result.append(disk_dict)
 
     return result
