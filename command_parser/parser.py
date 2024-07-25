@@ -1,15 +1,26 @@
+import asyncio
 import subprocess
 import re
 
 
-def get_fs_info():
+async def get_fs_info():
     # Получаем информацию о inode
-    inode_info = subprocess.run(['df', '-i'], capture_output=True, text=True)
-    inode = inode_info.stdout.strip().split('\n')
+    inode_info = await asyncio.create_subprocess_shell(
+        'df -i',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await inode_info.communicate()
+    inode = stdout.decode().strip().split('\n')
 
     # Получаем информацию о размере
-    size_info = subprocess.run(['df', '-k'], capture_output=True, text=True)
-    size = size_info.stdout.strip().split('\n')
+    size_info = await asyncio.create_subprocess_shell(
+        'df -k',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await size_info.communicate()
+    size = stdout.decode().strip().split('\n')
 
     size_dict = {}
     for line in size:
@@ -22,7 +33,6 @@ def get_fs_info():
             used_kb = int(parts[2])
             available_kb = int(parts[3])
         except ValueError:
-            # Пропускаем заголовки или некорректные данные
             continue
 
         if total_kb > 0:
@@ -50,7 +60,6 @@ def get_fs_info():
             iuse_percent = parts[4]
             mount_point = parts[5]
         except ValueError:
-            # Пропускаем заголовки или некорректные данные
             continue
 
         if inodes <= 0 or iused < 0:
@@ -66,11 +75,8 @@ def get_fs_info():
             'Filesystem': filesystem,
             'Inodes': inodes,
             'IUsed': iused,
-            'IFree': ifree,
-            'IUse%': iuse_percent,
             'IUse Calculated%': f"{iuse_calculated_percent:.2f}%" if isinstance(iuse_calculated_percent, float)
             else iuse_calculated_percent,
-            'Mounted on': mount_point,
             'Used MB': f"{used_mb:.2f}",
             'Space Used%': space_used_percent
         })
@@ -78,10 +84,14 @@ def get_fs_info():
     return results
 
 
-def get_disk_load():
-    # Получаем информацию о загрузке диска(tps, kb_read/s...)
-    iostat_info = subprocess.run(['iostat', '-d', '-k'], capture_output=True, text=True)
-    iostat = iostat_info.stdout.strip().split('\n')
+async def get_disk_load():
+    iostat_info = await asyncio.create_subprocess_shell(
+        'iostat -d -k',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await iostat_info.communicate()
+    iostat = stdout.decode().strip().split('\n')
     result = []
     for line in iostat[3:]:
         parts = line.split()
@@ -94,13 +104,16 @@ def get_disk_load():
     return result
 
 
-def get_top_info():
-    stdout = subprocess.run(['top', '-b', '-n1'], capture_output=True, text=True)
-    lines = stdout.stdout.strip().split('\n')
+async def get_top_info():
+    stdout = await asyncio.create_subprocess_shell(
+        'top -b -n1',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    output, _ = await stdout.communicate()
+    lines = output.decode().strip().split('\n')
     line = [word for segment in lines[0].split(',') for word in segment.split()]
     _line = [word for segment in lines[2].split(',') for word in segment.split()]
-    # сплит по запятым, и по пробелам,
-    # иначе там один параметр ломается и неудобно парсить
     result = {'user_mode': _line[1],
               'system_mode': _line[3],
               'idle_mode': _line[7],
@@ -112,23 +125,20 @@ def get_top_info():
     return result
 
 
-def get_listening_sockets():
-    sudo_pass = 'ZaqZaq12e'  # надо закинуть в конфиг
-    # Выполняем команду для получения информации о слушающих сокетах
-    result = subprocess.run(
-        ['sudo', '-S', 'netstat', '-lntup'],
-        input=sudo_pass + '\n',
-        capture_output=True,
-        text=True)
+async def get_listening_sockets():
+    sudo_pass = 'ZaqZaq12e'
+    result = await asyncio.create_subprocess_shell(
+        f'echo {sudo_pass} | sudo -S netstat -lntup',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
 
-    output = result.stdout
+    output, _ = await result.communicate()
 
-    # Обрабатываем вывод команды
-    lines = output.splitlines()
+    lines = output.decode().splitlines()
     sockets_info = []
 
-    # Ищем строки, которые содержат информацию о сокетах
-    for line in lines[2:]:  # Пропускаем первые две строки заголовков
+    for line in lines[2:]:
         parts = re.split(r'\s+', line)
         if len(parts) < 7:
             continue
@@ -138,7 +148,7 @@ def get_listening_sockets():
         pid_command = parts[6].split('/')
         pid = pid_command[0]
         command = pid_command[1] if len(pid_command) > 1 else 'N/A'
-        user = 'N/A'  # В этом примере пользователь не извлекается
+        user = 'N/A'
         sockets_info.append({
             'Command': command,
             'PID': pid,
@@ -150,13 +160,15 @@ def get_listening_sockets():
     return sockets_info
 
 
-def get_tcp_connection_states():
-    # Выполняем команду для получения информации о TCP соединениях
-    result = subprocess.run(['ss', '-ta'], capture_output=True, text=True)
-    output = result.stdout
+async def get_tcp_connection_states():
+    result = await asyncio.create_subprocess_shell(
+        'ss -ta',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    output, _ = await result.communicate()
 
-    # Обрабатываем вывод команды
-    lines = output.splitlines()
+    lines = output.decode().splitlines()
     states_count = {
         'ESTAB': 0,
         'FIN_WAIT': 0,
@@ -169,8 +181,7 @@ def get_tcp_connection_states():
         'UNKNOWN': 0
     }
 
-    # Ищем строки, которые содержат информацию о соединениях
-    for line in lines[1:]:  # Пропускаем первую строку заголовков
+    for line in lines[1:]:
         parts = re.split(r'\s+', line)
         if len(parts) < 1:
             continue
