@@ -234,7 +234,7 @@ async def parse_tcpdump_output(reader, duration, timeout=1):
     protocol_data = {}  # {protocol: total_bytes}
     traffic_data = {}  # {(src_ip, src_port, dst_ip, dst_port, protocol): {'bytes': 0}}
 
-    end_time = datetime.now() + timedelta(seconds=2)
+    end_time = datetime.now() + timedelta(seconds=1)
     logging.info("Начало захвата трафика")
 
     while datetime.now() < end_time:

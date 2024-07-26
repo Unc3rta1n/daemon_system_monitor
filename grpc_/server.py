@@ -124,9 +124,8 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             self.collect_data_task = asyncio.create_task(self.collect_data())
 
         # Сначала ждем, пока накопится достаточно данных
-        while len(self.stats_history) <= window / self.collect_data_period:
-            await asyncio.sleep(self.collect_data_period)
-
+        await asyncio.sleep(window)
+        # рабочая тема, но надо чуть по другому сделать
         while True:
             async with self.lock:
                 # Получаем данные за последние M секунд
