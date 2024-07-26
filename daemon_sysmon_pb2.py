@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13\x64\x61\x65mon_sysmon.proto\x12\rdaemon_sysmon\"6\n\x12SystemStatsRequest\x12\x10\n\x08interval\x18\x01 \x01(\x05\x12\x0e\n\x06window\x18\x02 \x01(\x05\"\x82\x02\n\x0bSystemStats\x12\x32\n\x0b\x66ilesystems\x18\x01 \x03(\x0b\x32\x1d.daemon_sysmon.FilesystemInfo\x12#\n\x03\x63pu\x18\x02 \x01(\x0b\x32\x16.daemon_sysmon.CpuInfo\x12+\n\x07\x64\x65vices\x18\x03 \x03(\x0b\x32\x1a.daemon_sysmon.DeviceStats\x12\x35\n\x11listening_sockets\x18\x04 \x03(\x0b\x32\x1a.daemon_sysmon.NetworkInfo\x12\x36\n\ntcp_states\x18\x05 \x01(\x0b\x32\".daemon_sysmon.TcpConnectionStates\"\x91\x01\n\x0e\x46ilesystemInfo\x12\x12\n\nfilesystem\x18\x01 \x01(\t\x12\x0e\n\x06inodes\x18\x02 \x01(\x03\x12\r\n\x05iused\x18\x03 \x01(\x03\x12\x1f\n\x17iuse_calculated_percent\x18\x04 \x01(\x02\x12\x0f\n\x07used_mb\x18\x05 \x01(\x02\x12\x1a\n\x12space_used_percent\x18\x06 \x01(\x02\"\x89\x01\n\x07\x43puInfo\x12\x11\n\tuser_mode\x18\x01 \x01(\x02\x12\x13\n\x0bsystem_mode\x18\x02 \x01(\x02\x12\x11\n\tidle_mode\x18\x03 \x01(\x02\x12\x14\n\x0cload_avg_min\x18\x04 \x01(\x02\x12\x15\n\rload_avg_5min\x18\x05 \x01(\x02\x12\x16\n\x0eload_avg_15min\x18\x06 \x01(\x02\"Y\n\x0b\x44\x65viceStats\x12\x0e\n\x06\x64\x65vice\x18\x01 \x01(\t\x12\x0b\n\x03tps\x18\x02 \x01(\x02\x12\x15\n\rkb_read_per_s\x18\x03 \x01(\x02\x12\x16\n\x0ekb_write_per_s\x18\x04 \x01(\x02\"Y\n\x0bNetworkInfo\x12\x0f\n\x07\x63ommand\x18\x01 \x01(\t\x12\x0b\n\x03pid\x18\x02 \x01(\t\x12\x0c\n\x04user\x18\x03 \x01(\t\x12\x10\n\x08protocol\x18\x04 \x01(\t\x12\x0c\n\x04port\x18\x05 \x01(\t\"\xb0\x01\n\x13TcpConnectionStates\x12\r\n\x05\x65stab\x18\x01 \x01(\x05\x12\x10\n\x08\x66in_wait\x18\x02 \x01(\x05\x12\x0f\n\x07syn_rcv\x18\x03 \x01(\x05\x12\x11\n\ttime_wait\x18\x04 \x01(\x05\x12\x12\n\nclose_wait\x18\x05 \x01(\x05\x12\x10\n\x08last_ack\x18\x06 \x01(\x05\x12\x0e\n\x06listen\x18\x07 \x01(\x05\x12\r\n\x05\x63lose\x18\x08 \x01(\x05\x12\x0f\n\x07unknown\x18\t \x01(\x05\x32\x66\n\x11SystemInfoService\x12Q\n\x0eGetSystemStats\x12!.daemon_sysmon.SystemStatsRequest\x1a\x1a.daemon_sysmon.SystemStats0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13\x64\x61\x65mon_sysmon.proto\x12\rdaemon_sysmon\"6\n\x12SystemStatsRequest\x12\x10\n\x08interval\x18\x01 \x01(\x05\x12\x0e\n\x06window\x18\x02 \x01(\x05\"\x82\x03\n\x0bSystemStats\x12\x32\n\x0b\x66ilesystems\x18\x01 \x03(\x0b\x32\x1d.daemon_sysmon.FilesystemInfo\x12#\n\x03\x63pu\x18\x02 \x01(\x0b\x32\x16.daemon_sysmon.CpuInfo\x12+\n\x07\x64\x65vices\x18\x03 \x03(\x0b\x32\x1a.daemon_sysmon.DeviceStats\x12\x35\n\x11listening_sockets\x18\x04 \x03(\x0b\x32\x1a.daemon_sysmon.NetworkInfo\x12\x36\n\ntcp_states\x18\x05 \x01(\x0b\x32\".daemon_sysmon.TcpConnectionStates\x12?\n\x14top_talkers_protocol\x18\x06 \x03(\x0b\x32!.daemon_sysmon.TopTalkersProtocol\x12=\n\x13top_talkers_traffic\x18\x07 \x03(\x0b\x32 .daemon_sysmon.TopTalkersTraffic\"\x91\x01\n\x0e\x46ilesystemInfo\x12\x12\n\nfilesystem\x18\x01 \x01(\t\x12\x0e\n\x06inodes\x18\x02 \x01(\x03\x12\r\n\x05iused\x18\x03 \x01(\x03\x12\x1f\n\x17iuse_calculated_percent\x18\x04 \x01(\x02\x12\x0f\n\x07used_mb\x18\x05 \x01(\x02\x12\x1a\n\x12space_used_percent\x18\x06 \x01(\x02\"\x89\x01\n\x07\x43puInfo\x12\x11\n\tuser_mode\x18\x01 \x01(\x02\x12\x13\n\x0bsystem_mode\x18\x02 \x01(\x02\x12\x11\n\tidle_mode\x18\x03 \x01(\x02\x12\x14\n\x0cload_avg_min\x18\x04 \x01(\x02\x12\x15\n\rload_avg_5min\x18\x05 \x01(\x02\x12\x16\n\x0eload_avg_15min\x18\x06 \x01(\x02\"Y\n\x0b\x44\x65viceStats\x12\x0e\n\x06\x64\x65vice\x18\x01 \x01(\t\x12\x0b\n\x03tps\x18\x02 \x01(\x02\x12\x15\n\rkb_read_per_s\x18\x03 \x01(\x02\x12\x16\n\x0ekb_write_per_s\x18\x04 \x01(\x02\"Y\n\x0bNetworkInfo\x12\x0f\n\x07\x63ommand\x18\x01 \x01(\t\x12\x0b\n\x03pid\x18\x02 \x01(\t\x12\x0c\n\x04user\x18\x03 \x01(\t\x12\x10\n\x08protocol\x18\x04 \x01(\t\x12\x0c\n\x04port\x18\x05 \x01(\t\"\xb0\x01\n\x13TcpConnectionStates\x12\r\n\x05\x65stab\x18\x01 \x01(\x05\x12\x10\n\x08\x66in_wait\x18\x02 \x01(\x05\x12\x0f\n\x07syn_rcv\x18\x03 \x01(\x05\x12\x11\n\ttime_wait\x18\x04 \x01(\x05\x12\x12\n\nclose_wait\x18\x05 \x01(\x05\x12\x10\n\x08last_ack\x18\x06 \x01(\x05\x12\x0e\n\x06listen\x18\x07 \x01(\x05\x12\r\n\x05\x63lose\x18\x08 \x01(\x05\x12\x0f\n\x07unknown\x18\t \x01(\x05\"F\n\x12TopTalkersProtocol\x12\x10\n\x08protocol\x18\x01 \x01(\t\x12\r\n\x05\x62ytes\x18\x02 \x01(\x05\x12\x0f\n\x07percent\x18\x03 \x01(\x02\"x\n\x11TopTalkersTraffic\x12\x0e\n\x06src_ip\x18\x01 \x01(\t\x12\x10\n\x08src_port\x18\x02 \x01(\t\x12\x0e\n\x06\x64st_ip\x18\x03 \x01(\t\x12\x10\n\x08\x64st_port\x18\x04 \x01(\t\x12\x10\n\x08protocol\x18\x05 \x01(\t\x12\r\n\x05\x62ytes\x18\x06 \x01(\x05\x32\x66\n\x11SystemInfoService\x12Q\n\x0eGetSystemStats\x12!.daemon_sysmon.SystemStatsRequest\x1a\x1a.daemon_sysmon.SystemStats0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -24,17 +24,21 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_SYSTEMSTATSREQUEST']._serialized_start=38
   _globals['_SYSTEMSTATSREQUEST']._serialized_end=92
   _globals['_SYSTEMSTATS']._serialized_start=95
-  _globals['_SYSTEMSTATS']._serialized_end=353
-  _globals['_FILESYSTEMINFO']._serialized_start=356
-  _globals['_FILESYSTEMINFO']._serialized_end=501
-  _globals['_CPUINFO']._serialized_start=504
-  _globals['_CPUINFO']._serialized_end=641
-  _globals['_DEVICESTATS']._serialized_start=643
-  _globals['_DEVICESTATS']._serialized_end=732
-  _globals['_NETWORKINFO']._serialized_start=734
-  _globals['_NETWORKINFO']._serialized_end=823
-  _globals['_TCPCONNECTIONSTATES']._serialized_start=826
-  _globals['_TCPCONNECTIONSTATES']._serialized_end=1002
-  _globals['_SYSTEMINFOSERVICE']._serialized_start=1004
-  _globals['_SYSTEMINFOSERVICE']._serialized_end=1106
+  _globals['_SYSTEMSTATS']._serialized_end=481
+  _globals['_FILESYSTEMINFO']._serialized_start=484
+  _globals['_FILESYSTEMINFO']._serialized_end=629
+  _globals['_CPUINFO']._serialized_start=632
+  _globals['_CPUINFO']._serialized_end=769
+  _globals['_DEVICESTATS']._serialized_start=771
+  _globals['_DEVICESTATS']._serialized_end=860
+  _globals['_NETWORKINFO']._serialized_start=862
+  _globals['_NETWORKINFO']._serialized_end=951
+  _globals['_TCPCONNECTIONSTATES']._serialized_start=954
+  _globals['_TCPCONNECTIONSTATES']._serialized_end=1130
+  _globals['_TOPTALKERSPROTOCOL']._serialized_start=1132
+  _globals['_TOPTALKERSPROTOCOL']._serialized_end=1202
+  _globals['_TOPTALKERSTRAFFIC']._serialized_start=1204
+  _globals['_TOPTALKERSTRAFFIC']._serialized_end=1324
+  _globals['_SYSTEMINFOSERVICE']._serialized_start=1326
+  _globals['_SYSTEMINFOSERVICE']._serialized_end=1428
 # @@protoc_insertion_point(module_scope)

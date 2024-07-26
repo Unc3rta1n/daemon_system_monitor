@@ -1,7 +1,12 @@
 import asyncio
-import subprocess
+
 import re
 import logging
+from datetime import datetime, timedelta
+
+LENGTH_PATTERN = re.compile(r'length (\d+)')
+PROTO_PATTERN = re.compile(r'proto (\w+)')
+IP_PATTERN = re.compile(r'(?P<src_ip>\S+)\.(?P<src_port>\d+) > (?P<dst_ip>\S+)\.(?P<dst_port>\d+)')
 
 
 async def get_fs_info():
@@ -57,9 +62,6 @@ async def get_fs_info():
         try:
             inodes = int(parts[1])
             iused = int(parts[2])
-            ifree = int(parts[3])
-            iuse_percent = parts[4]
-            mount_point = parts[5]
         except ValueError:
             continue
 
@@ -112,19 +114,38 @@ async def get_top_info():
     )
     output, _ = await stdout.communicate()
     lines = output.decode().strip().split('\n')
-    line = [word for segment in lines[0].split(',') for word in segment.split()]
-    _line = [word for segment in lines[2].split(',') for word in segment.split()]
-    try:
-        result = {'user_mode': float(_line[1]),
-                  'system_mode': float(_line[3]),
-                  'idle_mode': float(_line[7]),
-                  'load_avg_min': float(line[10]),
-                  'load_avg_5min': float(line[11]),
-                  'load_avg_15min': float(line[12])
-                  }
-    except Exception as e:
-        logging.error(f'че такое случается то тут бля {e}')
+    line = lines[0]
+    _line = lines[2]
+    pattern = r'(\d+\.\d+)\s+us,\s+(\d+\.\d+)\s+sy,.*?(\d+\.\d+)\s+id'
 
+    match = re.search(pattern, _line)
+    if match:
+        us_value = float(match.group(1))
+        sy_value = float(match.group(2))
+        id_value = float(match.group(3))
+    else:
+        us_value = 0
+        sy_value = 0
+        id_value = 0
+    pattern = r'load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)'
+    match = re.search(pattern, line)
+
+    if match:
+        load_avg_1 = float(match.group(1))
+        load_avg_5 = float(match.group(2))
+        load_avg_15 = float(match.group(3))
+    else:
+        load_avg_1 = 0
+        load_avg_5 = 0
+        load_avg_15 = 0
+
+    result = {'user_mode': us_value,
+              'system_mode': sy_value,
+              'idle_mode': id_value,
+              'load_avg_min': load_avg_1,
+              'load_avg_5min': load_avg_5,
+              'load_avg_15min': load_avg_15,
+              }
     return result
 
 
@@ -196,3 +217,81 @@ async def get_tcp_connection_states():
             states_count['UNKNOWN'] += 1
 
     return states_count
+
+
+async def capture_traffic(duration):
+    sudo_pass = 'ZaqZaq12e'
+    process = await asyncio.create_subprocess_shell(
+        f'echo {sudo_pass} | sudo -S tcpdump -ttt -i any -Q inout -l -v',
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, duration)
+    return protocol_data, traffic_data
+
+
+async def parse_tcpdump_output(reader, duration, timeout=1):
+    protocol_data = {}  # {protocol: total_bytes}
+    traffic_data = {}  # {(src_ip, src_port, dst_ip, dst_port, protocol): {'bytes': 0}}
+
+    end_time = datetime.now() + timedelta(seconds=2)
+    logging.info("Начало захвата трафика")
+
+    while datetime.now() < end_time:
+        try:
+            # Устанавливаем тайм-аут для ожидания данных
+            line = await asyncio.wait_for(reader.readline(), timeout)
+            line2 = await asyncio.wait_for(reader.readline(), timeout)
+
+            if not line and not line2:
+                logging.info('Поток завершился или нет данных')
+                break
+
+            line = line.decode('utf-8').strip()
+            line2 = line2.decode('utf-8').strip()
+
+            try:
+
+                match = IP_PATTERN.search(line2)
+                if match:
+                    src_ip = match.group('src_ip')
+                    src_port = match.group('src_port')
+                    dst_ip = match.group('dst_ip')
+                    dst_port = match.group('dst_port')
+                else:
+                    src_ip = 0
+                    src_port = 0
+                    dst_ip = 0
+                    dst_port = 0
+
+                match = PROTO_PATTERN.search(line)
+                if match:
+                    protocol = match.group(1)
+                else:
+                    protocol = 'N/A'
+
+                match = LENGTH_PATTERN.search(line2)
+                if match:
+                    length = int(match.group(1))
+                else:
+                    length = 0
+
+                # Обновление данных по протоколу
+                if protocol not in protocol_data:
+                    protocol_data[protocol] = 0
+                protocol_data[protocol] += length
+
+                # Обновление данных по трафику
+                flow_key = (src_ip, src_port, dst_ip, dst_port, protocol)
+                if flow_key not in traffic_data:
+                    traffic_data[flow_key] = {'bytes': 0}
+                traffic_data[flow_key]['bytes'] += length
+            except Exception as e:
+                logging.error(e)
+                continue
+
+        except asyncio.TimeoutError:
+            logging.warning('Тайм-аут ожидания данных, продолжаем цикл')
+
+    logging.info("Завершение захвата трафика")
+    return protocol_data, traffic_data

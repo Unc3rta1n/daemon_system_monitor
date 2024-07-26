@@ -20,6 +20,8 @@ message SystemStats {
   repeated DeviceStats devices = 3;
   repeated NetworkInfo listening_sockets = 4;
   TcpConnectionStates tcp_states = 5;
+  repeated TopTalkersProtocol top_talkers_protocol = 6;
+  repeated TopTalkersTraffic top_talkers_traffic = 7;
 }
 
 // Message representing filesystem info
@@ -70,4 +72,19 @@ message TcpConnectionStates {
   int32 listen = 7;
   int32 close = 8;
   int32 unknown = 9;
+}
+
+message TopTalkersProtocol {
+  string protocol = 1;
+  int32 bytes = 2;
+  float percent = 3;
+}
+
+message TopTalkersTraffic {
+  string src_ip = 1;
+  string src_port = 2;
+  string dst_ip = 3;
+  string dst_port = 4;
+  string protocol = 5;
+  int32 bytes = 6;
 }
