@@ -10,6 +10,8 @@ import daemon_sysmon_pb2
 import daemon_sysmon_pb2_grpc
 import logging
 
+from utils.utils import configure_daemon
+
 
 class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
     def __init__(self):
@@ -18,10 +20,12 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         self.collect_data_period = 1
         self.window = 0
         self.collect_data_task = None  # Хранить задачу сбора данных
+        self.settings = configure_daemon()
 
     async def collect_data(self):
         process = await capture_traffic()
         while True:
+            fs_info, cpu, dev_stats, net_info, tcp_states, prot_info, top_talkers_traffic_list = [], None, [], [], None, [], []
             logging.info("Начинаем сбор данных")
             filesystem_info = await get_fs_info()
             cpu_info = await get_top_info()
@@ -30,73 +34,75 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             tcp_connection_states = await get_tcp_connection_states()
             protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, self.collect_data_period)
             logging.info("Собрали данные")
-            # await asyncio.sleep(self.collect_data_period)
 
-            fs_info = [
-                daemon_sysmon_pb2.FilesystemInfo(
-                    filesystem=fs['Filesystem'],
-                    inodes=fs['Inodes'],
-                    iused=fs['IUsed'],
-                    iuse_calculated_percent=fs['IUse Calculated%'],
-                    used_mb=fs['Used MB'],
-                    space_used_percent=fs['Space Used%']
-                ) for fs in filesystem_info
-            ]
-            cpu = daemon_sysmon_pb2.CpuInfo(
-                user_mode=cpu_info['user_mode'],
-                system_mode=cpu_info['system_mode'],
-                idle_mode=cpu_info['idle_mode'],
-                load_avg_min=cpu_info['load_avg_min'],
-                load_avg_5min=cpu_info['load_avg_5min'],
-                load_avg_15min=cpu_info['load_avg_15min']
-            )
-
-            dev_stats = [
-                daemon_sysmon_pb2.DeviceStats(
-                    device=dev['Device'],
-                    tps=dev['tps'],
-                    kb_read_per_s=dev['kB_read/s'],
-                    kb_write_per_s=dev['kB_write/s']
-                ) for dev in disk_info
-            ]
-
-            net_info = [
-                daemon_sysmon_pb2.NetworkInfo(
-                    command=net['Command'],
-                    pid=net['PID'],
-                    user=net['User'],
-                    protocol=net['Protocol'],
-                    port=net['Port']
-                ) for net in listening_sockets
-            ]
-
-            tcp_states = daemon_sysmon_pb2.TcpConnectionStates(
-                estab=int(tcp_connection_states['ESTAB']),
-                fin_wait=int(tcp_connection_states['FIN_WAIT']),
-                syn_rcv=int(tcp_connection_states['SYN_RCV']),
-                time_wait=int(tcp_connection_states['TIME-WAIT']),
-                close_wait=int(tcp_connection_states['CLOSE-WAIT']),
-                last_ack=int(tcp_connection_states['LAST-ACK']),
-                listen=int(tcp_connection_states['LISTEN']),
-                close=int(tcp_connection_states['CLOSE']),
-                unknown=int(tcp_connection_states['UNKNOWN'])
-            )
-            prot_info = [
-                daemon_sysmon_pb2.TopTalkersProtocol(
-                    protocol=prot,
-                    bytes=_bytes,
-                    percent=0,
-                ) for prot, _bytes in protocol_data.items()
-            ]
-            top_talkers_traffic_list = []
-            for (src_ip, dst_ip, protocol), data in traffic_data.items():
-                top_talker = daemon_sysmon_pb2.TopTalkersTraffic(
-                    src_ip=str(src_ip),  # Преобразование в строку для случая с 0
-                    dst_ip=str(dst_ip),
-                    protocol=protocol,
-                    bytes=data['bytes']
+            if self.settings['filesystem_info']:
+                fs_info = [
+                    daemon_sysmon_pb2.FilesystemInfo(
+                        filesystem=fs['Filesystem'],
+                        inodes=fs['Inodes'],
+                        iused=fs['IUsed'],
+                        iuse_calculated_percent=fs['IUse Calculated%'],
+                        used_mb=fs['Used MB'],
+                        space_used_percent=fs['Space Used%']
+                    ) for fs in filesystem_info
+                ]
+            if self.settings['cpu_info']:
+                cpu = daemon_sysmon_pb2.CpuInfo(
+                    user_mode=cpu_info['user_mode'],
+                    system_mode=cpu_info['system_mode'],
+                    idle_mode=cpu_info['idle_mode'],
+                    load_avg_min=cpu_info['load_avg_min'],
+                    load_avg_5min=cpu_info['load_avg_5min'],
+                    load_avg_15min=cpu_info['load_avg_15min']
                 )
-                top_talkers_traffic_list.append(top_talker)
+            if self.settings['disk_info']:
+                dev_stats = [
+                    daemon_sysmon_pb2.DeviceStats(
+                        device=dev['Device'],
+                        tps=dev['tps'],
+                        kb_read_per_s=dev['kB_read/s'],
+                        kb_write_per_s=dev['kB_write/s']
+                    ) for dev in disk_info
+                ]
+            if self.settings['listening_sockets']:
+                net_info = [
+                    daemon_sysmon_pb2.NetworkInfo(
+                        command=net['Command'],
+                        pid=net['PID'],
+                        user=net['User'],
+                        protocol=net['Protocol'],
+                        port=net['Port']
+                    ) for net in listening_sockets
+                ]
+            if self.settings['tcp_connection_states']:
+                tcp_states = daemon_sysmon_pb2.TcpConnectionStates(
+                    estab=int(tcp_connection_states['ESTAB']),
+                    fin_wait=int(tcp_connection_states['FIN_WAIT']),
+                    syn_rcv=int(tcp_connection_states['SYN_RCV']),
+                    time_wait=int(tcp_connection_states['TIME-WAIT']),
+                    close_wait=int(tcp_connection_states['CLOSE-WAIT']),
+                    last_ack=int(tcp_connection_states['LAST-ACK']),
+                    listen=int(tcp_connection_states['LISTEN']),
+                    close=int(tcp_connection_states['CLOSE']),
+                    unknown=int(tcp_connection_states['UNKNOWN'])
+                )
+            if self.settings['network_info']:
+                prot_info = [
+                    daemon_sysmon_pb2.TopTalkersProtocol(
+                        protocol=prot,
+                        bytes=_bytes,
+                        percent=0,
+                    ) for prot, _bytes in protocol_data.items()
+                ]
+                top_talkers_traffic_list = []
+                for (src_ip, dst_ip, protocol), data in traffic_data.items():
+                    top_talker = daemon_sysmon_pb2.TopTalkersTraffic(
+                        src_ip=str(src_ip),
+                        dst_ip=str(dst_ip),
+                        protocol=protocol,
+                        bytes=data['bytes']
+                    )
+                    top_talkers_traffic_list.append(top_talker)
             async with self.lock:
                 self.stats_history.append(
                     daemon_sysmon_pb2.SystemStats(
@@ -119,14 +125,13 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         interval = request.interval
         window = request.window
         logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
-        # self.collect_data_period = interval // 2
+
         self.window = window
         if self.collect_data_task is None or self.collect_data_task.done():
             self.collect_data_task = asyncio.create_task(self.collect_data())
 
         # Сначала ждем, пока накопится достаточно данных
         await asyncio.sleep(window)
-        # рабочая тема, но надо чуть по другому сделать
         while True:
             async with self.lock:
                 # Получаем данные за последние M секунд
