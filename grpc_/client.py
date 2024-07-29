@@ -95,6 +95,19 @@ def print_system_stats(stats):
     print("\nTCP Connection States:")
     print(tabulate(tcp_table, headers=tcp_headers, tablefmt="grid"))
 
+    # Top Talkers Protocol Stats
+    proto_headers = ["Protocol", "bytes", "percent"]
+    proto_table = [
+        [
+            proto.protocol,
+            proto.bytes,
+            proto.percent,
+        ]
+        for proto in stats.top_talkers_protocol
+    ]
+    print("\nProto Stats:")
+    print(tabulate(proto_table, headers=proto_headers, tablefmt="grid"))
+
 
 async def run_client():
     # Подключаемся к gRPC серверу

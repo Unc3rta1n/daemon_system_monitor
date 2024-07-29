@@ -2,11 +2,12 @@ import asyncio
 
 import re
 import logging
+import select
+import subprocess
 from datetime import datetime, timedelta
 
-LENGTH_PATTERN = re.compile(r'length (\d+)')
-PROTO_PATTERN = re.compile(r'proto (\w+)')
-IP_PATTERN = re.compile(r'(?P<src_ip>\S+)\.(?P<src_port>\d+) > (?P<dst_ip>\S+)\.(?P<dst_port>\d+)')
+PROTO_PATTERN = re.compile(r':\s(\w+)')
+IP_PATTERN = re.compile(r'(\S+)\s>\s(\S+):')
 
 
 async def get_fs_info():
@@ -222,59 +223,56 @@ async def get_tcp_connection_states():
 async def capture_traffic(duration):
     sudo_pass = 'ZaqZaq12e'
     process = await asyncio.create_subprocess_shell(
-        f'echo {sudo_pass} | sudo -S tcpdump -ttt -i any -Q inout -l -v',
+        f'echo {sudo_pass} | sudo -S tcpdump -i any -Q inout -l -q -n',
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
-    protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, duration)
-    return protocol_data, traffic_data
+    return process
 
 
-async def parse_tcpdump_output(reader, duration, timeout=1):
+async def parse_tcpdump_output(reader, duration):
     protocol_data = {}  # {protocol: total_bytes}
     traffic_data = {}  # {(src_ip, src_port, dst_ip, dst_port, protocol): {'bytes': 0}}
 
-    end_time = datetime.now() + timedelta(seconds=1)
+    end_time = datetime.now() + timedelta(seconds=duration)
     logging.info("Начало захвата трафика")
 
     while datetime.now() < end_time:
         try:
             # Устанавливаем тайм-аут для ожидания данных
-            line = await asyncio.wait_for(reader.readline(), timeout)
-            line2 = await asyncio.wait_for(reader.readline(), timeout)
+            line = await asyncio.wait_for(reader.readline(), 0.10)
 
-            if not line and not line2:
+            if not line:
                 logging.info('Поток завершился или нет данных')
                 break
 
             line = line.decode('utf-8').strip()
-            line2 = line2.decode('utf-8').strip()
 
             try:
-
-                match = IP_PATTERN.search(line2)
+                # logging.info(f'да, строка пришла {line}')
+                match = IP_PATTERN.search(line)
                 if match:
-                    src_ip = match.group('src_ip')
-                    src_port = match.group('src_port')
-                    dst_ip = match.group('dst_ip')
-                    dst_port = match.group('dst_port')
+                    # logging.info("нашли срц, дст")
+                    src_ip = match.group(1)
+                    # src_port = match.group('src_port')
+                    dst_ip = match.group(2)
+                    # dst_port = match.group('dst_port')
                 else:
+                    # logging.info("не нашли")
                     src_ip = 0
-                    src_port = 0
                     dst_ip = 0
-                    dst_port = 0
+
+                # сюда регулярку искать протокол
 
                 match = PROTO_PATTERN.search(line)
                 if match:
                     protocol = match.group(1)
                 else:
                     protocol = 'N/A'
+                    logging.error(line)
 
-                match = LENGTH_PATTERN.search(line2)
-                if match:
-                    length = int(match.group(1))
-                else:
-                    length = 0
+                line = line.split()
+                length = int(line[-1])
 
                 # Обновление данных по протоколу
                 if protocol not in protocol_data:
@@ -282,7 +280,7 @@ async def parse_tcpdump_output(reader, duration, timeout=1):
                 protocol_data[protocol] += length
 
                 # Обновление данных по трафику
-                flow_key = (src_ip, src_port, dst_ip, dst_port, protocol)
+                flow_key = (src_ip, dst_ip, protocol)
                 if flow_key not in traffic_data:
                     traffic_data[flow_key] = {'bytes': 0}
                 traffic_data[flow_key]['bytes'] += length
@@ -291,7 +289,8 @@ async def parse_tcpdump_output(reader, duration, timeout=1):
                 continue
 
         except asyncio.TimeoutError:
-            logging.warning('Тайм-аут ожидания данных, продолжаем цикл')
+            pass
+        # logging.warning('Тайм-аут ожидания данных, продолжаем цикл')
 
     logging.info("Завершение захвата трафика")
     return protocol_data, traffic_data

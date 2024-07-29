@@ -160,17 +160,54 @@ def average_filesystems(stats_list):
     return fs_averages
 
 
+def average_protocol(stats_list):
+    protocol_totals = {}
+    total_bytes = 0
+    for stat in stats_list:
+        for protocol_info in stat.top_talkers_protocol:
+            protocol = protocol_info.protocol
+            if protocol not in protocol_totals:
+                protocol_totals[protocol] = 0
+            protocol_totals[protocol] += protocol_info.bytes
+            total_bytes += protocol_info.bytes
+
+    prot_avg = []
+    for key, value in protocol_totals.items():
+        prot_avg.append(daemon_sysmon_pb2.TopTalkersProtocol(
+            protocol=key,
+            bytes=value,
+            percent=value / total_bytes * 100
+        ))
+
+    # Сортировка по убыванию процента
+    sorted_prot_avg = sorted(prot_avg, key=lambda x: x.percent, reverse=True)
+
+    return sorted_prot_avg
+
+
+def average_traffic(stats_list):
+    traffic_totals = {}
+    total_bytes = 0
+    for stat in stats_list:
+        for key, value in traffic_totals.items():
+            if key not in traffic_totals:
+                traffic_totals[key] = 0
+            traffic_totals[key] += value
+
+
 def average_stats(stats_list):
     fs_averages = average_filesystems(stats_list)
     tcp_averages = average_tcp_states(stats_list)
     cpu_averages = average_cpu_info(stats_list)
     dev_averages = average_device_info(stats_list)
     unique_sockets = average_listening_sockets(stats_list)
+    protocol_averages = average_protocol(stats_list)
 
     return daemon_sysmon_pb2.SystemStats(
         filesystems=fs_averages,
         cpu=daemon_sysmon_pb2.CpuInfo(**cpu_averages),
         devices=dev_averages,
         listening_sockets=unique_sockets,
-        tcp_states=daemon_sysmon_pb2.TcpConnectionStates(**tcp_averages)
+        tcp_states=daemon_sysmon_pb2.TcpConnectionStates(**tcp_averages),
+        top_talkers_protocol=protocol_averages
     )

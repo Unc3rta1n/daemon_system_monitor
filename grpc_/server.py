@@ -3,7 +3,7 @@ import asyncio
 from concurrent import futures
 from collections import deque, defaultdict
 from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
-                                   get_tcp_connection_states, capture_traffic)
+                                   get_tcp_connection_states, capture_traffic, parse_tcpdump_output)
 from command_parser.average import (average_listening_sockets, average_stats, average_filesystems,
                                     average_tcp_states, average_cpu_info, average_device_info)
 import daemon_sysmon_pb2
@@ -19,16 +19,17 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         self.collect_data_task = None  # Хранить задачу сбора данных
 
     async def collect_data(self):
+        process = await capture_traffic(self.collect_data_period)
         while True:
             logging.info("Начинаем сбор данных")
-            await asyncio.sleep(self.collect_data_period)
             filesystem_info = await get_fs_info()
             cpu_info = await get_top_info()
             disk_info = await get_disk_load()
             listening_sockets = await get_listening_sockets()
             tcp_connection_states = await get_tcp_connection_states()
-            protocol_data, traffic_data = await capture_traffic(self.collect_data_period)
+            protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, self.collect_data_period)
             logging.info("Собрали данные")
+            await asyncio.sleep(self.collect_data_period)
 
             fs_info = [
                 daemon_sysmon_pb2.FilesystemInfo(
@@ -119,7 +120,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         interval = request.interval
         window = request.window
         logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
-
+        self.collect_data_period = interval // 2
         if self.collect_data_task is None or self.collect_data_task.done():
             self.collect_data_task = asyncio.create_task(self.collect_data())
 
