@@ -220,7 +220,7 @@ async def get_tcp_connection_states():
     return states_count
 
 
-async def capture_traffic(duration):
+async def capture_traffic():
     sudo_pass = 'ZaqZaq12e'
     process = await asyncio.create_subprocess_shell(
         f'echo {sudo_pass} | sudo -S tcpdump -i any -Q inout -l -q -n',
@@ -252,24 +252,20 @@ async def parse_tcpdump_output(reader, duration):
                 # logging.info(f'да, строка пришла {line}')
                 match = IP_PATTERN.search(line)
                 if match:
-                    # logging.info("нашли срц, дст")
-                    src_ip = match.group(1)
-                    # src_port = match.group('src_port')
-                    dst_ip = match.group(2)
-                    # dst_port = match.group('dst_port')
-                else:
-                    # logging.info("не нашли")
-                    src_ip = 0
-                    dst_ip = 0
 
-                # сюда регулярку искать протокол
+                    src_ip = match.group(1)
+
+                    dst_ip = match.group(2)
+
+                else:
+
+                    continue
 
                 match = PROTO_PATTERN.search(line)
                 if match:
                     protocol = match.group(1)
                 else:
-                    protocol = 'N/A'
-                    logging.error(line)
+                    continue
 
                 line = line.split()
                 length = int(line[-1])
@@ -290,7 +286,7 @@ async def parse_tcpdump_output(reader, duration):
 
         except asyncio.TimeoutError:
             pass
-        # logging.warning('Тайм-аут ожидания данных, продолжаем цикл')
+            # logging.warning('Тайм-аут ожидания данных, продолжаем цикл')
 
     logging.info("Завершение захвата трафика")
     return protocol_data, traffic_data

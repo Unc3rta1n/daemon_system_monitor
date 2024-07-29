@@ -20,7 +20,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         self.collect_data_task = None  # Хранить задачу сбора данных
 
     async def collect_data(self):
-        process = await capture_traffic(self.collect_data_period)
+        process = await capture_traffic()
         while True:
             logging.info("Начинаем сбор данных")
             filesystem_info = await get_fs_info()
@@ -30,7 +30,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             tcp_connection_states = await get_tcp_connection_states()
             protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, self.collect_data_period)
             logging.info("Собрали данные")
-            await asyncio.sleep(self.collect_data_period)
+            # await asyncio.sleep(self.collect_data_period)
 
             fs_info = [
                 daemon_sysmon_pb2.FilesystemInfo(
@@ -112,6 +112,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                 logging.info("Добавили данные в историю")
 
                 if len(self.stats_history) > self.window:
+                    logging.info("слишком много собранной инфы начинаем попать")
                     self.stats_history.popleft()
 
     async def GetSystemStats(self, request, context):
@@ -129,7 +130,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         while True:
             async with self.lock:
                 # Получаем данные за последние M секунд
-                stats_list = list(self.stats_history)
+                stats_list = list(self.stats_history)[-window:]
                 logging.info(f"Получаем статистику для окна {window} секунд")
 
             if stats_list:
@@ -140,7 +141,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             await asyncio.sleep(interval)
 
 
-async def serve(port: int):
+async def serve(port: int = 50051):
     system_monitor = SystemMonitor()
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
     daemon_sysmon_pb2_grpc.add_SystemInfoServiceServicer_to_server(system_monitor, server)

@@ -123,7 +123,7 @@ def print_system_stats(stats):
     print(tabulate(traff_table, headers=traff_headers, tablefmt="grid"))
 
 
-async def run_client(port):
+async def run_client(port: int = 50051):
     # Подключаемся к gRPC серверу
     async with grpc.aio.insecure_channel(f'localhost:{port}') as channel:
         stub = daemon_sysmon_pb2_grpc.SystemInfoServiceStub(channel)
@@ -132,7 +132,10 @@ async def run_client(port):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Клиент Системный монитор")
-    parser.add_argument("port", type=int, help="Порт, где находится демон")
+    parser.add_argument("-port", type=int, help="Порт, где находится демон")
     args = parser.parse_args()
 
-    asyncio.run(run_client(port=args.port))
+    if args.port:
+        asyncio.run(run_client(port=args.port))
+    else:
+        asyncio.run(run_client())

@@ -7,7 +7,7 @@ from grpc_.server import serve
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Демон Системный монитор")
-    parser.add_argument("port", type=int, help="Порт, на котором хотите развернуть демона")
+    parser.add_argument("-port", type=int, help="Порт, на котором хотите развернуть демона")
 
     args = parser.parse_args()
 
@@ -16,4 +16,7 @@ if __name__ == "__main__":
     console_handler.setFormatter(formatter)
     logging.basicConfig(level=logging.INFO, handlers=[console_handler])
 
-    asyncio.run(serve(args.port))
+    if args.port:
+        asyncio.run(serve(port=args.port))
+    else:
+        asyncio.run(serve())
