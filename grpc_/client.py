@@ -108,6 +108,19 @@ def print_system_stats(stats):
     print("\nProto Stats:")
     print(tabulate(proto_table, headers=proto_headers, tablefmt="grid"))
 
+    # Top Talkers Traffic Stats
+    traff_headers = ["src ip", "dst ip", "bytes"]
+    traff_table = [
+        [
+            proto.src_ip,
+            proto.dst_ip,
+            proto.bytes,
+        ]
+        for proto in stats.top_talkers_traffic
+    ]
+    print("\nProto Stats:")
+    print(tabulate(traff_table, headers=traff_headers, tablefmt="grid"))
+
 
 async def run_client():
     # Подключаемся к gRPC серверу

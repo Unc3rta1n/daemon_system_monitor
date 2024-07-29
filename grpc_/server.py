@@ -16,6 +16,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         self.stats_history = deque()
         self.lock = asyncio.Lock()
         self.collect_data_period = 1
+        self.window = 0
         self.collect_data_task = None  # Хранить задачу сбора данных
 
     async def collect_data(self):
@@ -88,13 +89,10 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                 ) for prot, _bytes in protocol_data.items()
             ]
             top_talkers_traffic_list = []
-            for (src_ip, src_port, dst_ip, dst_port, protocol), data in traffic_data.items():
-                # Создайте экземпляр TopTalkersTraffic и заполните его данными
+            for (src_ip, dst_ip, protocol), data in traffic_data.items():
                 top_talker = daemon_sysmon_pb2.TopTalkersTraffic(
                     src_ip=str(src_ip),  # Преобразование в строку для случая с 0
-                    src_port=str(src_port),
                     dst_ip=str(dst_ip),
-                    dst_port=str(dst_port),
                     protocol=protocol,
                     bytes=data['bytes']
                 )
@@ -113,14 +111,15 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                 )
                 logging.info("Добавили данные в историю")
 
-                if len(self.stats_history) > 60:
+                if len(self.stats_history) > self.window:
                     self.stats_history.popleft()
 
     async def GetSystemStats(self, request, context):
         interval = request.interval
         window = request.window
         logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
-        self.collect_data_period = interval // 2
+        # self.collect_data_period = interval // 2
+        self.window = window
         if self.collect_data_task is None or self.collect_data_task.done():
             self.collect_data_task = asyncio.create_task(self.collect_data())
 
@@ -130,12 +129,12 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         while True:
             async with self.lock:
                 # Получаем данные за последние M секунд
-                stats_list = list(self.stats_history)[-window:]
+                stats_list = list(self.stats_history)
                 logging.info(f"Получаем статистику для окна {window} секунд")
 
             if stats_list:
                 # Усреднение данных
-                averaged_stats = average_stats(stats_list)
+                averaged_stats = average_stats(stats_list, interval)
                 yield averaged_stats
 
             await asyncio.sleep(interval)

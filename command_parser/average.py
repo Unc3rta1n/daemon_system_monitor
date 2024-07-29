@@ -185,23 +185,55 @@ def average_protocol(stats_list):
     return sorted_prot_avg
 
 
-def average_traffic(stats_list):
-    traffic_totals = {}
-    total_bytes = 0
+def average_traffic(stats_list, interval):
+    traffic_totals = defaultdict(lambda: {
+        "src_ip": "",
+        "dst_ip": "",
+        "bytes": 0,
+        "count": 0
+    })
+
     for stat in stats_list:
-        for key, value in traffic_totals.items():
-            if key not in traffic_totals:
-                traffic_totals[key] = 0
-            traffic_totals[key] += value
+        for traffic_info in stat.top_talkers_traffic:
+            src_ip = traffic_info.src_ip
+            dst_ip = traffic_info.dst_ip
+            bytes = traffic_info.bytes
+            if src_ip + dst_ip not in traffic_totals:
+                traffic_totals[src_ip + dst_ip] = {
+                    "src_ip": src_ip,
+                    "dst_ip": dst_ip,
+                    "bytes": 0,
+                    "count": 0
+                }
+            traffic_totals[src_ip + dst_ip]["bytes"] += bytes
+            traffic_totals[src_ip + dst_ip]["count"] += 1
+
+    # Усредняем значения
+    traffic_averages = []
+    for key, totals in traffic_totals.items():
+        src_ip = totals["src_ip"]
+        dst_ip = totals["dst_ip"]
+        bytes = totals["bytes"] / interval  # Calculate average bytes
+        traffic_averages.append(daemon_sysmon_pb2.TopTalkersTraffic(
+            src_ip=src_ip,
+            dst_ip=dst_ip,
+            bytes=int(bytes)
+        ))
+
+    # Сортируем по убыванию bytes
+    traffic_averages = sorted(traffic_averages, key=lambda x: x.bytes, reverse=True)
+
+    return traffic_averages
 
 
-def average_stats(stats_list):
+def average_stats(stats_list, interval):
     fs_averages = average_filesystems(stats_list)
     tcp_averages = average_tcp_states(stats_list)
     cpu_averages = average_cpu_info(stats_list)
     dev_averages = average_device_info(stats_list)
     unique_sockets = average_listening_sockets(stats_list)
     protocol_averages = average_protocol(stats_list)
+    traffic_averages = average_traffic(stats_list, interval)
 
     return daemon_sysmon_pb2.SystemStats(
         filesystems=fs_averages,
@@ -209,5 +241,6 @@ def average_stats(stats_list):
         devices=dev_averages,
         listening_sockets=unique_sockets,
         tcp_states=daemon_sysmon_pb2.TcpConnectionStates(**tcp_averages),
-        top_talkers_protocol=protocol_averages
+        top_talkers_protocol=protocol_averages,
+        top_talkers_traffic=traffic_averages
     )
