@@ -4,9 +4,10 @@ import datetime
 from tabulate import tabulate
 import daemon_sysmon_pb2
 import daemon_sysmon_pb2_grpc
+import argparse
 
 
-async def get_system_stats(stub, interval, window):
+async def get_system_stats(stub, interval: int, window: int):
     # Создаем запрос с указанными интервалом и окном
     request = daemon_sysmon_pb2.SystemStatsRequest(interval=interval, window=window)
 
@@ -118,16 +119,20 @@ def print_system_stats(stats):
         ]
         for proto in stats.top_talkers_traffic
     ]
-    print("\nProto Stats:")
+    print("\nTraffic Stats:")
     print(tabulate(traff_table, headers=traff_headers, tablefmt="grid"))
 
 
-async def run_client():
+async def run_client(port):
     # Подключаемся к gRPC серверу
-    async with grpc.aio.insecure_channel('localhost:50051') as channel:
+    async with grpc.aio.insecure_channel(f'localhost:{port}') as channel:
         stub = daemon_sysmon_pb2_grpc.SystemInfoServiceStub(channel)
         await get_system_stats(stub, interval=5, window=15)
 
 
 if __name__ == "__main__":
-    asyncio.run(run_client())
+    parser = argparse.ArgumentParser(description="Клиент Системный монитор")
+    parser.add_argument("port", type=int, help="Порт, где находится демон")
+    args = parser.parse_args()
+
+    asyncio.run(run_client(port=args.port))

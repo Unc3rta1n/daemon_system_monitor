@@ -140,12 +140,12 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
             await asyncio.sleep(interval)
 
 
-async def serve():
+async def serve(port: int):
     system_monitor = SystemMonitor()
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
     daemon_sysmon_pb2_grpc.add_SystemInfoServiceServicer_to_server(system_monitor, server)
-    server.add_insecure_port('[::]:50051')
+    server.add_insecure_port(f'[::]:{port}')
     await server.start()
-    print("Server started on port 50051")
+    print(f"Server started on port {port}")
     # Ожидаем завершения сервера
     await server.wait_for_termination()
