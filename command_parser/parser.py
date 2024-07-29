@@ -1,9 +1,6 @@
 import asyncio
-
 import re
 import logging
-import select
-import subprocess
 from datetime import datetime, timedelta
 
 PROTO_PATTERN = re.compile(r':\s(\w+)')

@@ -19,18 +19,18 @@ def init_logging():
 
 def get_config():
     config = configparser.ConfigParser()
-    config.read("settings.ini")
+    config.read("config.ini")
     return config
 
 
 def configure_daemon():
     config = get_config()
     settings = {
-        'filesystem_info': bool(config["Settings"]["filesystem_info"]),
-        'cpu_info': bool(config["Settings"]["cpu_info"]),
-        'disk_info': bool(config["Settings"]["disk_info"]),
-        'listening_sockets': bool(config["Settings"]["listening_sockets"]),
-        'tcp_connection_states': bool(config["Settings"]["tcp_connection_states"]),
-        'network_info': bool(config["Settings"]["network_info"]),
+        'filesystem_info': config.getboolean("Settings", "filesystem_info"),
+        'cpu_info': config.getboolean("Settings", "cpu_info"),
+        'disk_info': config.getboolean("Settings", "disk_info"),
+        'listening_sockets': config.getboolean("Settings", "listening_sockets"),
+        'tcp_connection_states': config.getboolean("Settings", "tcp_connection_states"),
+        'network_info': config.getboolean("Settings", "network_info"),
     }
     return settings

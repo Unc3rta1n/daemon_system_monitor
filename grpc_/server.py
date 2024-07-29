@@ -1,11 +1,10 @@
 import grpc
 import asyncio
 from concurrent import futures
-from collections import deque, defaultdict
+from collections import deque
 from command_parser.parser import (get_fs_info, get_top_info, get_disk_load, get_listening_sockets,
                                    get_tcp_connection_states, capture_traffic, parse_tcpdump_output)
-from command_parser.average import (average_listening_sockets, average_stats, average_filesystems,
-                                    average_tcp_states, average_cpu_info, average_device_info)
+from command_parser.average import average_stats
 import daemon_sysmon_pb2
 import daemon_sysmon_pb2_grpc
 import logging
@@ -25,17 +24,13 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
     async def collect_data(self):
         process = await capture_traffic()
         while True:
+            await asyncio.sleep(self.collect_data_period)
+
             fs_info, cpu, dev_stats, net_info, tcp_states, prot_info, top_talkers_traffic_list = [], None, [], [], None, [], []
             logging.info("Начинаем сбор данных")
-            filesystem_info = await get_fs_info()
-            cpu_info = await get_top_info()
-            disk_info = await get_disk_load()
-            listening_sockets = await get_listening_sockets()
-            tcp_connection_states = await get_tcp_connection_states()
-            protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, self.collect_data_period)
-            logging.info("Собрали данные")
 
             if self.settings['filesystem_info']:
+                filesystem_info = await get_fs_info()
                 fs_info = [
                     daemon_sysmon_pb2.FilesystemInfo(
                         filesystem=fs['Filesystem'],
@@ -46,7 +41,9 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                         space_used_percent=fs['Space Used%']
                     ) for fs in filesystem_info
                 ]
+
             if self.settings['cpu_info']:
+                cpu_info = await get_top_info()
                 cpu = daemon_sysmon_pb2.CpuInfo(
                     user_mode=cpu_info['user_mode'],
                     system_mode=cpu_info['system_mode'],
@@ -55,7 +52,9 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                     load_avg_5min=cpu_info['load_avg_5min'],
                     load_avg_15min=cpu_info['load_avg_15min']
                 )
+
             if self.settings['disk_info']:
+                disk_info = await get_disk_load()
                 dev_stats = [
                     daemon_sysmon_pb2.DeviceStats(
                         device=dev['Device'],
@@ -64,7 +63,9 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                         kb_write_per_s=dev['kB_write/s']
                     ) for dev in disk_info
                 ]
+
             if self.settings['listening_sockets']:
+                listening_sockets = await get_listening_sockets()
                 net_info = [
                     daemon_sysmon_pb2.NetworkInfo(
                         command=net['Command'],
@@ -74,7 +75,9 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                         port=net['Port']
                     ) for net in listening_sockets
                 ]
+
             if self.settings['tcp_connection_states']:
+                tcp_connection_states = await get_tcp_connection_states()
                 tcp_states = daemon_sysmon_pb2.TcpConnectionStates(
                     estab=int(tcp_connection_states['ESTAB']),
                     fin_wait=int(tcp_connection_states['FIN_WAIT']),
@@ -86,7 +89,9 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                     close=int(tcp_connection_states['CLOSE']),
                     unknown=int(tcp_connection_states['UNKNOWN'])
                 )
+
             if self.settings['network_info']:
+                protocol_data, traffic_data = await parse_tcpdump_output(process.stdout, self.collect_data_period)
                 prot_info = [
                     daemon_sysmon_pb2.TopTalkersProtocol(
                         protocol=prot,
@@ -103,6 +108,8 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                         bytes=data['bytes']
                     )
                     top_talkers_traffic_list.append(top_talker)
+            logging.info("Собрали данные")
+
             async with self.lock:
                 self.stats_history.append(
                     daemon_sysmon_pb2.SystemStats(
@@ -118,15 +125,16 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                 logging.info("Добавили данные в историю")
 
                 if len(self.stats_history) > self.window:
-                    logging.info("слишком много собранной инфы начинаем попать")
+                    logging.info("Cлишком много собранной инфы начинаем попать")
                     self.stats_history.popleft()
 
     async def GetSystemStats(self, request, context):
         interval = request.interval
         window = request.window
+        self.window = window
+        self.collect_data_period = interval
         logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
 
-        self.window = window
         if self.collect_data_task is None or self.collect_data_task.done():
             self.collect_data_task = asyncio.create_task(self.collect_data())
 
