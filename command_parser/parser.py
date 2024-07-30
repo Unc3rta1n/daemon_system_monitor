@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 PROTO_PATTERN = re.compile(r':\s(\w+)')
 IP_PATTERN = re.compile(r'(\S+)\s>\s(\S+):')
+IPv4_PATTERN = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d+)')
+IPv6_PATTERN = re.compile(r'([0-9a-fA-F:]+)\.(\d+)')
 
 
 async def get_fs_info():
@@ -246,16 +248,13 @@ async def parse_tcpdump_output(reader, duration):
             line = line.decode('utf-8').strip()
 
             try:
+                addr = []
                 # logging.info(f'да, строка пришла {line}')
                 match = IP_PATTERN.search(line)
                 if match:
-
-                    src_ip = match.group(1)
-
-                    dst_ip = match.group(2)
-
+                    addr.append(match.group(1))
+                    addr.append(match.group(2))
                 else:
-
                     continue
 
                 match = PROTO_PATTERN.search(line)
@@ -263,6 +262,27 @@ async def parse_tcpdump_output(reader, duration):
                     protocol = match.group(1)
                 else:
                     continue
+                src_ip, src_port, dst_ip, dst_port = addr[0], 0, addr[1], 0
+                if protocol != 'ICMP':
+                    ipv4_match = IPv4_PATTERN.search(addr[0])
+                    ipv6_match = IPv6_PATTERN.search(addr[0])
+
+                    if ipv4_match:
+                        src_ip = ipv4_match.group(1)
+                        src_port = ipv4_match.group(2)
+                    elif ipv6_match:
+                        src_ip = ipv6_match.group(1)
+                        src_port = ipv6_match.group(2)
+
+                    ipv4_match = IPv4_PATTERN.search(addr[1])
+                    ipv6_match = IPv6_PATTERN.search(addr[1])
+
+                    if ipv4_match:
+                        dst_ip = ipv4_match.group(1)
+                        dst_port = ipv4_match.group(2)
+                    elif ipv6_match:
+                        dst_ip = ipv6_match.group(1)
+                        dst_port = ipv6_match.group(2)
 
                 line = line.split()
                 length = int(line[-1])
@@ -272,8 +292,10 @@ async def parse_tcpdump_output(reader, duration):
                     protocol_data[protocol] = 0
                 protocol_data[protocol] += length
 
+                if src_ip == src_port or dst_ip == dst_port:
+                    logging.info(f"алярм {addr[0]}, {addr[1]}")
                 # Обновление данных по трафику
-                flow_key = (src_ip, dst_ip, protocol)
+                flow_key = (src_ip, src_port, dst_ip, dst_port, protocol)
                 if flow_key not in traffic_data:
                     traffic_data[flow_key] = {'bytes': 0}
                 traffic_data[flow_key]['bytes'] += length

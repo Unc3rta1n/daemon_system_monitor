@@ -82,7 +82,9 @@ message TopTalkersProtocol {
 
 message TopTalkersTraffic {
   string src_ip = 1;
-  string dst_ip = 2;
-  string protocol = 3;
-  int32 bytes = 4;
+  string src_port = 2;
+  string dst_ip = 3;
+  string dst_port = 4;
+  string protocol = 5;
+  int32 bytes = 6;
 }

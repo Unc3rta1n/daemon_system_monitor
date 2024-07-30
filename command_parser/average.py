@@ -188,7 +188,9 @@ def average_protocol(stats_list):
 def average_traffic(stats_list, interval):
     traffic_totals = defaultdict(lambda: {
         "src_ip": "",
+        "src_port": "",
         "dst_ip": "",
+        "dst_port": "",
         "bytes": 0,
         "count": 0
     })
@@ -196,27 +198,35 @@ def average_traffic(stats_list, interval):
     for stat in stats_list:
         for traffic_info in stat.top_talkers_traffic:
             src_ip = traffic_info.src_ip
+            src_port = traffic_info.src_port
+
             dst_ip = traffic_info.dst_ip
+            dst_port = traffic_info.dst_port
+
             bytes = traffic_info.bytes
-            if src_ip + dst_ip not in traffic_totals:
-                traffic_totals[src_ip + dst_ip] = {
+            if src_ip + src_port + dst_ip + dst_port not in traffic_totals:
+                traffic_totals[src_ip + src_port + dst_ip + dst_port] = {
                     "src_ip": src_ip,
+                    "src_port": src_port,
                     "dst_ip": dst_ip,
+                    "dst_port": dst_port,
                     "bytes": 0,
-                    "count": 0
                 }
-            traffic_totals[src_ip + dst_ip]["bytes"] += bytes
-            traffic_totals[src_ip + dst_ip]["count"] += 1
+            traffic_totals[src_ip + src_port + dst_ip + dst_port]["bytes"] += bytes
 
     # Усредняем значения
     traffic_averages = []
     for key, totals in traffic_totals.items():
         src_ip = totals["src_ip"]
+        src_port = totals["src_port"]
         dst_ip = totals["dst_ip"]
-        bytes = totals["bytes"] / interval  # Calculate average bytes
+        dst_port = totals["dst_port"]
+        bytes = totals["bytes"] / interval
         traffic_averages.append(daemon_sysmon_pb2.TopTalkersTraffic(
             src_ip=src_ip,
+            src_port=src_port,
             dst_ip=dst_ip,
+            dst_port=dst_port,
             bytes=int(bytes)
         ))
 

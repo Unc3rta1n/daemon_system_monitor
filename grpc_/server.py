@@ -24,9 +24,8 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
     async def collect_data(self):
         process = await capture_traffic()
         while True:
-            await asyncio.sleep(self.collect_data_period)
-
-            fs_info, cpu, dev_stats, net_info, tcp_states, prot_info, top_talkers_traffic_list = [], None, [], [], None, [], []
+            (fs_info, cpu, dev_stats, net_info, tcp_states,
+             prot_info, top_talkers_traffic_list) = [], {}, [], [], {}, [], []
             logging.info("Начинаем сбор данных")
 
             if self.settings['filesystem_info']:
@@ -100,10 +99,14 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                     ) for prot, _bytes in protocol_data.items()
                 ]
                 top_talkers_traffic_list = []
-                for (src_ip, dst_ip, protocol), data in traffic_data.items():
+                for (src_ip, src_port, dst_ip, dst_port, protocol), data in traffic_data.items():
+                    if src_ip == src_port or dst_ip == dst_port:
+                        logging.info(f"алярм ")
                     top_talker = daemon_sysmon_pb2.TopTalkersTraffic(
                         src_ip=str(src_ip),
+                        src_port=str(src_port),
                         dst_ip=str(dst_ip),
+                        dst_port=str(dst_port),
                         protocol=protocol,
                         bytes=data['bytes']
                     )
@@ -123,6 +126,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
                     )
                 )
                 logging.info("Добавили данные в историю")
+                await asyncio.sleep(self.collect_data_period)
 
                 if len(self.stats_history) > self.window:
                     logging.info("Cлишком много собранной инфы начинаем попать")
@@ -132,7 +136,7 @@ class SystemMonitor(daemon_sysmon_pb2_grpc.SystemInfoServiceServicer):
         interval = request.interval
         window = request.window
         self.window = window
-        self.collect_data_period = interval
+        # self.collect_data_period = interval
         logging.info(f"Получен запрос от клиента с интервалом {interval} и окном {window}")
 
         if self.collect_data_task is None or self.collect_data_task.done():
