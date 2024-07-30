@@ -5,7 +5,7 @@ from command_parser.parser import (get_top_info, get_fs_info, get_disk_load, get
 
 
 async def main():
-    process = await capture_traffic(5)
+    process = await capture_traffic()
     filesystem_info = await get_fs_info()
     cpu_info = await get_top_info()
     device_stats = await get_disk_load()
@@ -30,6 +30,6 @@ async def main():
     for state, count in tcp_states.items():
         print(f"{state}: {count}")
 
-
+    
 if __name__ == "__main__":
     asyncio.run(main())
